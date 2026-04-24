@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>M 0 T I V A</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+    <style>
+        #map { height: 400px; }
+        .hero {
+            background: linear-gradient(to right, #0d6efd, #00c6ff);
+            color: white;
+            padding: 60px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+  <div class="container">
+   <a class="navbar-brand" href="#" 
+   style="font-family: 'Montserrat', sans-serif; 
+          font-size: 2.2rem; 
+          font-weight: 800; 
+          letter-spacing: 8px; 
+          color: #1e3a8a;">
+    M O T I V A
+</a>
+    <button class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#menu">
+        <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse" id="menu">
+      <ul class="navbar-nav ms-auto">
+
+        <li class="nav-item">
+          <a class="nav-link" href="index.php">Home</a>
+        </li>
+
+        <li class="nav-item">
+          <a class="nav-link" href="pages/sebaran.php">Sebaran Cagar Budaya</a>
+        </li>
+
+        <li class="nav-item">
+          <a class="nav-link" href="pages/motif.php">Kumpulan Motif</a>
+        </li>
+
+        <li class="nav-item">
+          <a class="nav-link" href="pages/ekraf.php">Ekraf</a>
+        </li>
+
+        <li class="nav-item">
+          <a href="auth/login.php" class="btn btn-warning ms-2">Login</a>
+        </li>
+
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<!-- 🔥 HERO -->
+<div class="hero">
+    <h1>Penciptaan Karya Kreatif Inovatif</h1>
+    <p>“Dari Peta ke Cerita, dari Budaya ke Pengalaman” </p>
+</div>
+
+<!-- 📊 INFO -->
+<div class="container mt-5">
+    
+    <!-- Judul Utama -->
+    <h2 class="text-center fw-bold mb-4">Tentang MOTIVA</h2>
+    
+    <!-- Deskripsi Utama -->
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <p class="text-start lead">
+                MOTIVA merupakan platform berbasis Sistem Informasi Geografis (SIG) yang menyajikan 
+                informasi spasial cagar budaya di Kabupaten Mempawah secara interaktif, informatif, 
+                dan edukatif. 
+            </p>
+            <p class="text-start">
+                Platform ini dikembangkan untuk mendukung pelestarian, dokumentasi, dan promosi 
+                warisan budaya melalui teknologi digital berbasis WebGIS.
+            </p>
+            <p class="text-start">
+                Tidak hanya itu, MOTIVA juga menghadirkan pengalaman yang lebih menarik melalui 
+                teknologi <strong>Augmented Reality (AR)</strong>. Dengan AR, pengguna dapat melihat 
+                visualisasi motif dan elemen budaya secara lebih hidup — seolah-olah hadir langsung 
+                di hadapan kita. Pendekatan ini membuat proses belajar budaya menjadi lebih dekat, 
+                interaktif, dan menyenangkan.
+            </p>
+        </div>
+    </div>
+
+<!-- 🗺️ MAP PREVIEW -->
+<div class="container mt-4">
+    <h3 class="text-center">Peta Cagar Budaya</h3>
+    <div id="map"></div>
+</div>
+<div class="container mt-4">
+
+    <div class="row text-center">
+        <div class="col-md-4">
+            <h3>📍 Lokasi</h3>
+            <p>Menampilkan titik cagar budaya secara interaktif</p>
+        </div>
+
+        <div class="col-md-4">
+            <h3>🗂️  Data</h3>
+            <p>Data lengkap berbasis GeoJSON & SHP</p>
+        </div>
+
+        <div class="col-md-4">
+            <h3>📊 Statistik</h3>
+            <p>Dashboard analisis data wilayah</p>
+        </div>
+    </div>
+
+</div>
+
+<!-- FOOTER -->
+<footer class="text-center mt-5 p-3 bg-dark text-white">
+    © 2026 WebGIS Mempawah
+</footer>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+const map = L.map('map').setView([0.3, 109.1], 10);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+// load data
+fetch('api/cagar.php')
+.then(res => res.json())
+.then(data => {
+
+    let layer = L.geoJSON(data, {
+        pointToLayer: function (feature, latlng) {
+            return L.circleMarker(latlng, {
+                radius: 6,
+                fillColor: "red",
+                color: "#000",
+                weight: 1,
+                fillOpacity: 0.8
+            });
+        },
+        onEachFeature: function (feature, layer) {
+            layer.bindPopup(feature.properties.nama);
+        }
+    }).addTo(map);
+
+    map.fitBounds(layer.getBounds());
+});
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

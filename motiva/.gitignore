@@ -1,0 +1,8 @@
+.env
+vendor/
+.DS_Store
+*.log
+uploads/foto/*
+uploads/geojson/*
+!uploads/foto/.gitkeep
+!uploads/geojson/.gitkeep

@@ -1,0 +1,14 @@
+{
+    "name": "motiva/webgis",
+    "description": "MOTIVA WebGIS - Sistem Informasi Geografis Cagar Budaya",
+    "type": "project",
+    "require": {
+        "php": ">=7.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "Config\\": "config/",
+            "App\\": "app/"
+        }
+    }
+}

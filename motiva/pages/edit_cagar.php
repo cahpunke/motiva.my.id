@@ -1,305 +1,194 @@
 <?php
-session_start();
-if(!isset($_SESSION['login'])){
-    header("Location: ../auth/login.php");
-    exit;
-}
+require_once __DIR__ . '/../vendor/autoload.php';
+use Config\Database;
+use Config\Auth;
+use Config\Security;
 
-include '../config/database.php';
+$pageTitle = 'Edit Cagar Budaya';
+
+include __DIR__ . '/../layout/header.php';
+
+$db = new Database();
+$conn = $db->getConnection();
 
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
-if ($id <= 0) {
-    echo "<div class='alert alert-danger'>ID tidak valid.</div>";
+if ($id === 0) {
+    header('Location: cagar.php');
     exit;
 }
 
-// ================= AMBIL DATA =================
-$sql = "SELECT * FROM cagar_budaya_mempawah WHERE id = ?";
-$stmt = mysqli_prepare($conn, $sql);
-mysqli_stmt_bind_param($stmt, "i", $id);
-mysqli_stmt_execute($stmt);
-$result = mysqli_stmt_get_result($stmt);
-$data = mysqli_fetch_assoc($result);
+// Get data
+$stmt = $conn->prepare("SELECT * FROM cagar_budaya_mempawah WHERE id = ? LIMIT 1");
+$stmt->bind_param('i', $id);
+$stmt->execute();
+$result = $stmt->get_result();
+$data = $result->fetch_assoc();
 
 if (!$data) {
-    echo "<div class='alert alert-danger'>Data tidak ditemukan.</div>";
+    header('Location: cagar.php?error=Data tidak ditemukan');
     exit;
 }
 
-// ================= PROSES UPDATE =================
-if(isset($_POST['update'])){
+// Get kecamatan list
+$kecamatanList = [];
+$result = mysqli_query($conn, "SELECT DISTINCT kecamata_1 FROM cagar_budaya_mempawah WHERE kecamata_1 IS NOT NULL ORDER BY kecamata_1");
+while ($row = mysqli_fetch_assoc($result)) {
+    $kecamatanList[] = $row['kecamata_1'];
+}
 
-    $destinasi   = $_POST['destinasi'];
-    $jenis       = $_POST['jenis'];
-    $kelurahan   = $_POST['kelurahan_'];
-    $kecamatan   = $_POST['kecamata_1'];
-    $kabupaten   = $_POST['kab_kota'];
-    $provinsi    = $_POST['provinsi_1'];
-    $sumber      = $_POST['sumber_1'];
-    $lat         = $_POST['lat'];
-    $lng         = $_POST['lng'];
+$success = '';
+$error = '';
+$csrfToken = Security::generateCSRFToken();
 
-    $fotoBaru = $data['foto']; // default pakai foto lama
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!Security::verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+        $error = 'CSRF token tidak valid';
+    } else {
+        $nama = $_POST['nama'] ?? '';
+        $jenis = $_POST['jenis'] ?? '';
+        $kecamatan = $_POST['kecamatan'] ?? '';
+        $kelurahan = $_POST['kelurahan'] ?? '';
+        $sumber = $_POST['sumber'] ?? '';
+        $lat = $_POST['lat'] ?? '';
+        $lng = $_POST['lng'] ?? '';
+        $deskripsi = $_POST['deskripsi'] ?? '';
 
-    // ================= UPLOAD FOTO =================
-    if(!empty($_FILES['foto']['name'])){
-
-        $allowed = ['jpg','jpeg','png'];
-        $ext = strtolower(pathinfo($_FILES['foto']['name'], PATHINFO_EXTENSION));
-
-        if(!in_array($ext, $allowed)){
-            echo "<script>alert('Format file harus JPG/PNG');</script>";
+        if (empty($nama) || empty($kecamatan)) {
+            $error = 'Nama dan Kecamatan wajib diisi';
         } else {
-
-            $namaFile = time() . '_' . $_FILES['foto']['name'];
-            $tmp      = $_FILES['foto']['tmp_name'];
-
-            if(move_uploaded_file($tmp, "../uploads/foto/" . $namaFile)){
-                $fotoBaru = $namaFile;
+            $stmt = $conn->prepare("UPDATE cagar_budaya_mempawah 
+                                   SET destinasi=?, jenis=?, kecamata_1=?, kelurahan_=?, sumber_1=?, lat=?, lng=?, deskripsi=?
+                                   WHERE id=?");
+            
+            $stmt->bind_param('sssssddi', $nama, $jenis, $kecamatan, $kelurahan, $sumber, $lat, $lng, $deskripsi, $id);
+            
+            if ($stmt->execute()) {
+                $success = 'Data berhasil diperbarui';
+                $data = [
+                    'id' => $id,
+                    'destinasi' => $nama,
+                    'jenis' => $jenis,
+                    'kecamata_1' => $kecamatan,
+                    'kelurahan_' => $kelurahan,
+                    'sumber_1' => $sumber,
+                    'lat' => $lat,
+                    'lng' => $lng,
+                    'deskripsi' => $deskripsi,
+                    'foto' => $data['foto']
+                ];
+            } else {
+                $error = 'Gagal memperbarui data: ' . $stmt->error;
             }
         }
     }
-
-    // ================= UPDATE DB =================
-    $sql = "UPDATE cagar_budaya_mempawah SET
-        destinasi = ?,
-        jenis = ?,
-        kelurahan_ = ?,
-        kecamata_1 = ?,
-        kab_kota = ?,
-        provinsi_1 = ?,
-        sumber_1 = ?,
-        lat = ?,
-        lng = ?,
-        foto = ?
-        WHERE id = ?";
-
-    $stmt = mysqli_prepare($conn, $sql);
-
-    mysqli_stmt_bind_param($stmt, "sssssssdssi",
-        $destinasi,
-        $jenis,
-        $kelurahan,
-        $kecamatan,
-        $kabupaten,
-        $provinsi,
-        $sumber,
-        $lat,
-        $lng,
-        $fotoBaru,
-        $id
-    );
-
-    mysqli_stmt_execute($stmt);
-
-    echo "<script>
-            alert('Data berhasil diupdate');
-            window.location='dashboard.php?page=cagar';
-          </script>";
 }
 ?>
 
-<!DOCTYPE html>
-<html>
-<head>
-<title>Edit Cagar Budaya</title>
-
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-
-<style>
-body {
-    background: #f4f6f9;
-    font-family: 'Segoe UI', sans-serif;
-}
-
-.sidebar {
-    width: 230px;
-    height: 100vh;
-    position: fixed;
-    background: #1e293b;
-    color: white;
-    padding-top: 20px;
-}
-
-.sidebar a {
-    color: #cbd5e1;
-    display: block;
-    padding: 12px 20px;
-    text-decoration: none;
-}
-
-.sidebar a:hover {
-    background: #0d6efd;
-    color: white;
-}
-
-.content {
-    margin-left: 230px;
-    padding: 30px;
-}
-
-.navbar {
-    margin-left: 230px;
-}
-
-.card-form {
-    border-radius: 15px;
-    box-shadow: 0 8px 20px rgba(0,0,0,0.08);
-    border: none;
-}
-
-#map {
-    height: 300px;
-    border-radius: 10px;
-}
-
-.preview-img {
-    max-width: 180px;
-    border-radius: 10px;
-    margin-bottom: 10px;
-}
-</style>
-</head>
-
-<body>
-
-<!-- NAVBAR -->
-<nav class="navbar navbar-dark bg-dark px-3">
-    <span class="navbar-brand">🌐 Dashboard MOTIVA</span>
-    <a href="../auth/logout.php" class="btn btn-danger btn-sm">Logout</a>
-</nav>
-
-<!-- SIDEBAR -->
-<div class="sidebar">
-    <h5 class="text-center mb-4">MENU</h5>
-    <a href="dashboard.php?page=map">🗺️ Lihat Map</a>
-    <a href="dashboard.php?page=cagar">📍 Data Cagar</a>
-</div>
-
-<!-- CONTENT -->
-<div class="content">
-
-<div class="card card-form p-4">
-<h4 class="mb-4">✏️ Edit Cagar Budaya</h4>
-
-<form method="post" enctype="multipart/form-data">
-
 <div class="row">
+    <div class="col-md-8">
+        <div class="card card-warning">
+            <div class="card-header">
+                <h3 class="card-title">Form Edit Cagar Budaya</h3>
+            </div>
+            <form method="post" enctype="multipart/form-data">
+                <div class="card-body">
+                    <?php if (!empty($success)): ?>
+                    <div class="alert alert-success alert-dismissible fade show">
+                        <button type="button" class="close" data-dismiss="alert">&times;</button>
+                        <strong>Sukses!</strong> <?= htmlspecialchars($success) ?>
+                    </div>
+                    <?php endif; ?>
 
-<!-- FORM -->
-<div class="col-md-7">
+                    <?php if (!empty($error)): ?>
+                    <div class="alert alert-danger alert-dismissible fade show">
+                        <button type="button" class="close" data-dismiss="alert">&times;</button>
+                        <strong>Error!</strong> <?= htmlspecialchars($error) ?>
+                    </div>
+                    <?php endif; ?>
 
-<div class="mb-3">
-<label>Destinasi</label>
-<input type="text" name="destinasi" class="form-control" value="<?= $data['destinasi'] ?>" required>
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+
+                    <div class="form-group">
+                        <label for="nama">Nama Cagar Budaya <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="nama" name="nama" value="<?= htmlspecialchars($data['destinasi'] ?? '') ?>" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="jenis">Jenis</label>
+                        <input type="text" class="form-control" id="jenis" name="jenis" value="<?= htmlspecialchars($data['jenis'] ?? '') ?>">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="kecamatan">Kecamatan <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="kecamatan" name="kecamatan" value="<?= htmlspecialchars($data['kecamata_1'] ?? '') ?>" list="kecamatanList" required>
+                        <datalist id="kecamatanList">
+                            <?php foreach ($kecamatanList as $kec): ?>
+                            <option value="<?= htmlspecialchars($kec) ?>">
+                            <?php endforeach; ?>
+                        </datalist>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="kelurahan">Kelurahan</label>
+                        <input type="text" class="form-control" id="kelurahan" name="kelurahan" value="<?= htmlspecialchars($data['kelurahan_'] ?? '') ?>">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="sumber">Sumber</label>
+                        <input type="text" class="form-control" id="sumber" name="sumber" value="<?= htmlspecialchars($data['sumber_1'] ?? '') ?>">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="lat">Latitude</label>
+                            <input type="number" class="form-control" id="lat" name="lat" step="0.000001" value="<?= htmlspecialchars($data['lat'] ?? '') ?>">
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="lng">Longitude</label>
+                            <input type="number" class="form-control" id="lng" name="lng" step="0.000001" value="<?= htmlspecialchars($data['lng'] ?? '') ?>">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="deskripsi">Deskripsi</label>
+                        <textarea class="form-control" id="deskripsi" name="deskripsi" rows="4"><?= htmlspecialchars($data['deskripsi'] ?? '') ?></textarea>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <button type="submit" class="btn btn-warning">Update</button>
+                    <a href="cagar.php" class="btn btn-secondary">Batal</a>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-info">
+            <div class="card-header">
+                <h3 class="card-title">Informasi</h3>
+            </div>
+            <div class="card-body">
+                <p><strong>ID:</strong> <?= (int)$data['id'] ?></p>
+                <p><strong>Dibuat:</strong> <?= htmlspecialchars($data['created_at'] ?? '-') ?></p>
+                <p><strong>Diupdate:</strong> <?= htmlspecialchars($data['updated_at'] ?? '-') ?></p>
+                <hr>
+                <a href="delete_cagar.php?id=<?= (int)$data['id'] ?>" class="btn btn-danger btn-sm" onclick="return confirm('Yakin ingin menghapus?')">
+                    <i class="fas fa-trash"></i> Hapus Data
+                </a>
+            </div>
+        </div>
+
+        <?php if (!empty($data['foto'])): ?>
+        <div class="card card-primary mt-3">
+            <div class="card-header">
+                <h3 class="card-title">Foto</h3>
+            </div>
+            <div class="card-body">
+                <img src="../uploads/foto/<?= htmlspecialchars($data['foto']) ?>" class="img-fluid" alt="Foto">
+            </div>
+        </div>
+        <?php endif; ?>
+    </div>
 </div>
 
-<div class="mb-3">
-<label>Jenis</label>
-<input type="text" name="jenis" class="form-control" value="<?= $data['jenis'] ?>">
-</div>
-
-<div class="mb-3">
-<label>Kelurahan</label>
-<input type="text" name="kelurahan_" class="form-control" value="<?= $data['kelurahan_'] ?>">
-</div>
-
-<div class="mb-3">
-<label>Kecamatan</label>
-<input type="text" name="kecamata_1" class="form-control" value="<?= $data['kecamata_1'] ?>">
-</div>
-
-<div class="mb-3">
-<label>Kabupaten</label>
-<input type="text" name="kab_kota" class="form-control" value="<?= $data['kab_kota'] ?>">
-</div>
-
-<div class="mb-3">
-<label>Provinsi</label>
-<input type="text" name="provinsi_1" class="form-control" value="<?= $data['provinsi_1'] ?>">
-</div>
-
-<div class="mb-3">
-<label>Sumber</label>
-<input type="text" name="sumber_1" class="form-control" value="<?= $data['sumber_1'] ?>">
-</div>
-
-<div class="row">
-<div class="col-md-6">
-<label>Latitude</label>
-<input type="text" id="lat" name="lat" class="form-control" value="<?= $data['lat'] ?>">
-</div>
-
-<div class="col-md-6">
-<label>Longitude</label>
-<input type="text" id="lng" name="lng" class="form-control" value="<?= $data['lng'] ?>">
-</div>
-</div>
-
-<!-- FOTO -->
-<div class="mt-3">
-<label>Foto</label><br>
-
-<?php if(!empty($data['foto'])): ?>
-<img src="../uploads/foto/<?= $data['foto'] ?>" class="preview-img">
-<?php endif; ?>
-
-<img id="previewNew" class="preview-img d-none">
-
-<input type="file" name="foto" class="form-control mt-2" onchange="previewImage(event)">
-</div>
-
-<div class="mt-4 d-flex justify-content-between">
-<a href="dashboard.php?page=cagar" class="btn btn-secondary">← Kembali</a>
-<button type="submit" name="update" class="btn btn-primary">💾 Simpan</button>
-</div>
-
-</div>
-
-<!-- MAP -->
-<div class="col-md-5">
-<label>Pilih Lokasi di Map</label>
-<div id="map"></div>
-<small>Klik map untuk isi koordinat</small>
-</div>
-
-</div>
-
-</form>
-</div>
-
-</div>
-
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
-<script>
-const lat = <?= $data['lat'] ?: 0.3 ?>;
-const lng = <?= $data['lng'] ?: 109 ?>;
-
-const map = L.map('map').setView([lat, lng], 13);
-
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-let marker = L.marker([lat, lng]).addTo(map);
-
-map.on('click', function(e){
-    document.getElementById('lat').value = e.latlng.lat;
-    document.getElementById('lng').value = e.latlng.lng;
-    marker.setLatLng(e.latlng);
-});
-
-function previewImage(event){
-    const file = event.target.files[0];
-    const preview = document.getElementById('previewNew');
-
-    if(file){
-        preview.src = URL.createObjectURL(file);
-        preview.classList.remove('d-none');
-    }
-}
-</script>
-
-</body>
-</html>
+<?php include __DIR__ . '/../layout/footer.php'; ?>
